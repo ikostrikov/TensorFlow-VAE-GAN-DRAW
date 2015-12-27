@@ -9,32 +9,11 @@ from deconv import deconv2d
 flags = tf.flags
 logging = tf.logging
 
-flags.DEFINE_integer("batch_size", 64, "batch size")
+flags.DEFINE_integer("batch_size", 128, "batch size")
 flags.DEFINE_integer("updates_num", 100000, "number of updates in training")
-flags.DEFINE_float("learning_rate", 0.01, "learning rate")
+flags.DEFINE_float("learning_rate", 0.1, "learning rate")
 
 FLAGS = flags.FLAGS
-
-def batch_norm(input, depth):
-    """Returns a batch-normalized version of x."""
-    beta = tf.Variable(tf.constant(0.0, shape=[depth]))
-    gamma = tf.Variable(tf.constant(1.0, shape=[depth]))
-    epsilon = 1e-9
-
-    mean, variance = tf.nn.moments(input, [0, 1, 2])
-    return tf.nn.batch_norm_with_global_normalization(
-        input, mean, variance, beta, gamma,
-        epsilon, True)
-
-    
-def deconv(input, output_size, kernel_shape, bias_shape, padding='SAME'):
-    # Create variable named "weights".
-    weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tf.random_normal_initializer(0.0, math.sqrt(2.0/(kernel_shape[0]*kernel_shape[1]*kernel_shape[3]))))
-    # Create variable named "biases".
-    biases = tf.get_variable("biases", bias_shape, initializer=tf.constant_initializer(0.0))
-    conv = tf.nn.deconv2d(input, weights, output_size, strides=[1, 2, 2, 1], padding=padding)
-    return conv + biases
 
 def discriminator(input):
     return (pt.wrap(input).
