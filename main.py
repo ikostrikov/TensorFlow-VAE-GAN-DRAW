@@ -1,16 +1,17 @@
 import tensorflow as tf
+import prettytensor as pt
 from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
 import math
 import scipy.misc
+from deconv import deconv2d
 
 flags = tf.flags
 logging = tf.logging
 
 flags.DEFINE_integer("batch_size", 64, "batch size")
 flags.DEFINE_integer("updates_num", 100000, "number of updates in training")
-flags.DEFINE_float("learning_rate", 0.005, "learning rate")
-flags.DEFINE_string("mode", "MLP", "MLP | ConvNet")
+flags.DEFINE_float("learning_rate", 0.01, "learning rate")
 
 FLAGS = flags.FLAGS
 
@@ -25,117 +26,64 @@ def batch_norm(input, depth):
         input, mean, variance, beta, gamma,
         epsilon, True)
 
-def conv(input, kernel_shape, bias_shape):
-    # Create variable named "weights".
-    weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tf.random_normal_initializer(0.0, math.sqrt(2.0/(kernel_shape[0]*kernel_shape[1]*kernel_shape[2]))))
-    # Create variable named "biases".
-    biases = tf.get_variable("biases", bias_shape, initializer=tf.constant_initializer(0.0))
-    conv = tf.nn.conv2d(input, weights, strides=[1, 1, 1, 1], padding='SAME')
-    return conv + biases
     
-    
-def deconv(input, output_size, kernel_shape, bias_shape, bias_value=None, padding='SAME'):
+def deconv(input, output_size, kernel_shape, bias_shape, padding='SAME'):
     # Create variable named "weights".
     weights = tf.get_variable("weights", kernel_shape,
                               initializer=tf.random_normal_initializer(0.0, math.sqrt(2.0/(kernel_shape[0]*kernel_shape[1]*kernel_shape[3]))))
     # Create variable named "biases".
-    if bias_value is None:
-        bias_value = 0.0
-    biases = tf.get_variable("biases", bias_shape, initializer=tf.constant_initializer(bias_value))
+    biases = tf.get_variable("biases", bias_shape, initializer=tf.constant_initializer(0.0))
     conv = tf.nn.deconv2d(input, weights, output_size, strides=[1, 2, 2, 1], padding=padding)
     return conv + biases
 
-
-def linear(input,  kernel_shape, bias_shape, bias_value=None):
-    # Create variable named "weights".
-    weights = tf.get_variable("weights", kernel_shape, initializer=tf.random_normal_initializer(0.0, math.sqrt(2.0/kernel_shape[0])))
-    # Create variable named "biases".
-    if bias_value is None:
-        bias_value = 0.0
-    biases = tf.get_variable("biases", bias_shape, initializer=tf.constant_initializer(bias_value))
-    linear = tf.nn.xw_plus_b(input, weights, biases)
-    return linear + biases
-
-
 def discriminator(input):
-    if FLAGS.mode == "MLP":
-        with tf.variable_scope("D1"):
-            output1 = tf.nn.dropout(tf.nn.elu(linear(tf.nn.dropout(input,0.9), [28*28, 1024], 1024)), 0.5)
-        with tf.variable_scope("D2"):
-            output2 = tf.nn.dropout(tf.nn.elu(linear(output1, [1024, 1024], 1024)), 0.5)
-        with tf.variable_scope("D3"):
-            output3 = linear(output2, [1024, 1], 1)
-            return output3
-    elif FLAGS.mode == "ConvNet":
-        with tf.variable_scope("D0"):
-            input = batch_norm(tf.reshape(input, [FLAGS.batch_size, 28, 28, 1]), 1)
-        with tf.variable_scope("D1"):
-            output1 = tf.nn.elu(batch_norm(conv(input, [5, 5, 1, 32], 32), 32))
-            output1 = tf.nn.max_pool(output1, ksize=[1, 2, 2, 1],
-                            strides=[1, 2, 2, 1], padding='SAME')
-        with tf.variable_scope("D2"):
-            output2 = tf.nn.elu(batch_norm(conv(output1, [5, 5, 32, 64], 64), 64))
-            output2 = tf.nn.max_pool(output2, ksize=[1, 2, 2, 1],
-                            strides=[1, 2, 2, 1], padding='SAME')
-            output2 = tf.nn.dropout(tf.reshape(output2, [FLAGS.batch_size, 7*7*64]), 0.5)
-        with tf.variable_scope("D3"):
-            output3 = tf.nn.dropout(tf.nn.elu(linear(output2, [7*7*64, 1024], 1024)), 0.5)
-        with tf.variable_scope("D4"):
-            output4 = linear(output3, [1024, 1], 1)
-            return output4                    
+    return (pt.wrap(input).
+            reshape([FLAGS.batch_size, 28, 28, 1]).
+            conv2d(5, 32, stride=2).
+            conv2d(5, 64, stride=2).
+            conv2d(5, 128, edges='VALID').
+            dropout(0.9).
+            flatten().
+            fully_connected(1, activation_fn=None)).tensor
 
-def generator(bias_value=-2.0):
-    if FLAGS.mode == "MLP":
-        with tf.variable_scope("G0"):
-            input = tf.random_uniform([FLAGS.batch_size, 100], 0.0, 1.0)
-        with tf.variable_scope("G1"):
-            output1 = tf.nn.elu(linear(input, [100, 1024], 1024))
-        with tf.variable_scope("G2"):
-            output2 = tf.nn.elu(linear(output1, [1024, 1024], 1024))
-        with tf.variable_scope("G3"):
-            output3 = linear(output2, [1024, 28*28], 28*28, bias_value)
-            return tf.nn.sigmoid(output3)
-    elif FLAGS.mode == "ConvNet":
-        with tf.variable_scope("G0"):
-            input = batch_norm(tf.random_uniform([FLAGS.batch_size, 1, 1, 100], 0.0, 1.0), 100)
-        with tf.variable_scope("G1"):
-            output1 = tf.nn.elu(batch_norm(deconv(input, [FLAGS.batch_size, 4, 4, 128], [4, 4, 128, 100], 128, padding='VALID'), 128))
-        with tf.variable_scope("G2"):
-            output2 = tf.nn.elu(batch_norm(deconv(output1, [FLAGS.batch_size, 7, 7, 64], [5, 5, 64, 128], 64), 64))
-        with tf.variable_scope("G3"):
-            output3 = tf.nn.elu(batch_norm(deconv(output2, [FLAGS.batch_size, 14, 14, 32], [5, 5, 32, 64], 32), 32))
-        with tf.variable_scope("G4"):
-            output4 = batch_norm(deconv(output3, [FLAGS.batch_size, 28, 28, 1], [5, 5, 1, 32], 1, bias_value), 1)
-            return tf.nn.sigmoid(output4)
-
+def generator():
+    input_tensor = tf.random_uniform([FLAGS.batch_size, 1, 1, 100], -1.0, 1.0)
+    return (pt.wrap(input_tensor).
+            deconv2d(3, 128, edges='VALID').
+            deconv2d(5, 64, edges='VALID').
+            deconv2d(5, 32, stride=2).
+            deconv2d(5, 1, stride=2, activation_fn=tf.nn.sigmoid)).tensor
 
 if __name__ == "__main__":
     mnist = input_data.read_data_sets("/work/kostrikov/data/MNIST/", one_hot=True)
     
     input_tensor = tf.placeholder(tf.float32, [FLAGS.batch_size, 28*28])
-    
-    with tf.variable_scope("model") as scope:
-        D1 = discriminator(input_tensor)
-        print(len(tf.trainable_variables()))
-        G = generator()
-        scope.reuse_variables()
-        D2 = discriminator(G)
-        
-        D_loss = tf.reduce_mean(tf.nn.relu(D1)-D1+tf.log(1.0+tf.exp(-tf.abs(D1))))+tf.reduce_mean(tf.nn.relu(D2)+tf.log(1.0+tf.exp(-tf.abs(D2))))
-        
-        G_loss = tf.reduce_mean(tf.nn.relu(D2)-D2+tf.log(1.0+tf.exp(-tf.abs(D2))))
 
+    with tf.variable_scope("model") as scope:
+        with pt.defaults_scope(activation_fn=tf.nn.elu,
+                               batch_normalize=True,
+                               learned_moments_update_rate=0.1,
+                               variance_epsilon=0.001,
+                               scale_after_normalization=True):
+            D1 = discriminator(input_tensor)
+            D_params_num = len(tf.trainable_variables())
+            G = generator()
+    with tf.variable_scope("model", reuse=True) as scope:
+        with pt.defaults_scope(activation_fn=tf.nn.elu,
+                               batch_normalize=True,
+                               learned_moments_update_rate=0.1,
+                               variance_epsilon=0.001,
+                               scale_after_normalization=True):
+            D2 = discriminator(G)
+
+    D_loss = tf.reduce_mean(tf.nn.relu(D1)-D1+tf.log(1.0+tf.exp(-tf.abs(D1))))+tf.reduce_mean(tf.nn.relu(D2)+tf.log(1.0+tf.exp(-tf.abs(D2))))            
+    G_loss = tf.reduce_mean(tf.nn.relu(D2)-D2+tf.log(1.0+tf.exp(-tf.abs(D2))))
 
     momentum = tf.placeholder(tf.float32)
-    optimizer = tf.train.MomentumOptimizer(FLAGS.learning_rate, momentum)
+    optimizer = tf.train.AdamOptimizer(FLAGS.learning_rate, epsilon=1.0)
     params = tf.trainable_variables()
-    if FLAGS.mode == "MLP":
-        D_params = params[:6] #TODO: FIX THIS
-        G_params = params[6:]
-    else:
-        D_params = params[:14] #TODO: FIX THIS
-        G_params = params[14:]
+    D_params = params[:D_params_num]
+    G_params = params[D_params_num:]
     train_discrimator = optimizer.minimize(loss=D_loss, var_list=D_params)
     train_generator = optimizer.minimize(loss=G_loss, var_list=G_params)
 
