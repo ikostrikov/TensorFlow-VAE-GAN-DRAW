@@ -5,3 +5,5 @@ TensorFlow implementation of [Deep Convolutional Generative Adversarial Nets](ht
 ###TODO:
 - [ ] More complex data.
 - [ ] Add attention.
+- [ ] Add [Adversarial Autoencoder](http://arxiv.org/pdf/1511.05644.pdf)
+- [ ] Replace current attention mechanism with Spatial Transformer Layer
