@@ -99,8 +99,8 @@ def get_reconstruction_cost(output_tensor, target_tensor, epsilon=1e-8):
         target_tensor: the target tensor that we want to reconstruct
         epsilon:
     '''
-    return tf.reduce_sum(-input_tensor * tf.log(output_tensor + epsilon) -
-                         (1.0 - input_tensor) * tf.log(1.0 - output_tensor + epsilon))
+    return tf.reduce_sum(-target_tensor * tf.log(output_tensor + epsilon) -
+                         (1.0 - target_tensor) * tf.log(1.0 - output_tensor + epsilon))
 
 if __name__ == "__main__":
     data_directory = os.path.join(FLAGS.working_directory, "MNIST")
