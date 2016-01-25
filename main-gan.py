@@ -21,7 +21,8 @@ logging = tf.logging
 flags.DEFINE_integer("batch_size", 128, "batch size")
 flags.DEFINE_integer("updates_per_epoch", 1000, "number of updates per epoch")
 flags.DEFINE_integer("max_epoch", 100, "max epoch")
-flags.DEFINE_float("learning_rate", 1e-2, "learning rate")
+flags.DEFINE_float("g_learning_rate", 1e-2, "learning rate")
+flags.DEFINE_float("d_learning_rate", 1e-3, "learning rate")
 flags.DEFINE_string("working_directory", "", "")
 
 FLAGS = flags.FLAGS
@@ -65,7 +66,7 @@ def generator():
     TODO: Add fixed initialization, so we can draw interpolated images
 
     Returns:
-        A deconvolutional (not true deconv, transposed conv2d) network that 
+        A deconvolutional (not true deconv, transposed conv2d) network that
         generated images.
     '''
     input_tensor = tf.random_uniform([FLAGS.batch_size, 1, 1, 100], -1.0, 1.0)
@@ -85,6 +86,7 @@ def get_generator_loss(D2):
     '''
     return tf.reduce_mean(tf.nn.relu(D2) - D2 + tf.log(1.0 + tf.exp(-tf.abs(D2))))
 
+  
 if __name__ == "__main__":
     data_directory = os.path.join(FLAGS.working_directory, "MNIST")
     if not os.path.exists(data_directory):
@@ -93,33 +95,32 @@ if __name__ == "__main__":
 
     input_tensor = tf.placeholder(tf.float32, [FLAGS.batch_size, 28 * 28])
 
-    with tf.variable_scope("model"):
-        with pt.defaults_scope(activation_fn=tf.nn.elu,
-                               batch_normalize=True,
-                               learned_moments_update_rate=0.1,
-                               variance_epsilon=0.001,
-                               scale_after_normalization=True):
-            D1 = discriminator(input_tensor)  # positive examples
-            D_params_num = len(tf.trainable_variables())
-            G = generator()
 
-    with tf.variable_scope("model", reuse=True):
-        with pt.defaults_scope(activation_fn=tf.nn.elu,
-                               batch_normalize=True,
-                               learned_moments_update_rate=0.0003,
-                               variance_epsilon=0.001,
-                               scale_after_normalization=True):
-            D2 = discriminator(G)  # generated examples
+    with pt.defaults_scope(activation_fn=tf.nn.elu,
+                           batch_normalize=True,
+                           learned_moments_update_rate=0.0003,
+                           variance_epsilon=0.001,
+                           scale_after_normalization=True):
+            with tf.variable_scope("model"):
+                D1 = discriminator(input_tensor)  # positive examples
+                D_params_num = len(tf.trainable_variables())
+                G = generator()
+
+            with tf.variable_scope("model", reuse=True):
+                D2 = discriminator(G)  # generated examples
 
     D_loss = get_discrinator_loss(D1, D2)
     G_loss = get_generator_loss(D2)
 
-    optimizer = tf.train.AdamOptimizer(FLAGS.learning_rate, epsilon=1.0)
+    learning_rate = tf.placeholder(tf.float32, shape=[])
+    optimizer = tf.train.AdamOptimizer(learning_rate, epsilon=1.0)
     params = tf.trainable_variables()
     D_params = params[:D_params_num]
     G_params = params[D_params_num:]
-    train_discrimator = optimizer.minimize(loss=D_loss, var_list=D_params)
-    train_generator = optimizer.minimize(loss=G_loss, var_list=G_params)
+#    train_discrimator = optimizer.minimize(loss=D_loss, var_list=D_params)
+#    train_generator = optimizer.minimize(loss=G_loss, var_list=G_params)
+    train_discrimator = pt.apply_optimizer(optimizer, losses=[D_loss], regularize=True, include_marked=True, var_list=D_params)
+    train_generator = pt.apply_optimizer(optimizer, losses=[G_loss], regularize=True, include_marked=True, var_list=G_params)
 
     init = tf.initialize_all_variables()
 
@@ -136,10 +137,12 @@ if __name__ == "__main__":
             for i in range(FLAGS.updates_per_epoch):
                 pbar.update(i)
                 x, _ = mnist.train.next_batch(FLAGS.batch_size)
-                _, loss_value = sess.run([train_discrimator, D_loss], {input_tensor: x})
+                _, loss_value = sess.run([train_discrimator, D_loss], {input_tensor: x, learning_rate: FLAGS.d_learning_rate})
                 discriminator_loss += loss_value
 
-                _, loss_value = sess.run([train_generator, G_loss])
+                # We still need input for moving averages.
+                # Need to find how to fix it.
+                _, loss_value = sess.run([train_generator, G_loss], {input_tensor: x, learning_rate: FLAGS.g_learning_rate})
                 generator_loss += loss_value
 
             discriminator_loss = discriminator_loss / FLAGS.updates_per_epoch

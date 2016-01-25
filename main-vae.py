@@ -110,21 +110,18 @@ if __name__ == "__main__":
 
     input_tensor = tf.placeholder(tf.float32, [FLAGS.batch_size, 28 * 28])
 
-    with tf.variable_scope("model") as scope:
-        with pt.defaults_scope(activation_fn=tf.nn.elu,
-                               batch_normalize=True,
-                               learned_moments_update_rate=0.0003,
-                               variance_epsilon=0.001,
-                               scale_after_normalization=True):
-            output_tensor, mean, stddev = decoder(encoder(input_tensor))
+    with pt.defaults_scope(activation_fn=tf.nn.elu,
+                           batch_normalize=True,
+                           learned_moments_update_rate=0.0003,
+                           variance_epsilon=0.001,
+                           scale_after_normalization=True):
+        with pt.defaults_scope(phase=pt.Phase.train):
+            with tf.variable_scope("model") as scope:
+                output_tensor, mean, stddev = decoder(encoder(input_tensor))
 
-    with tf.variable_scope("model", reuse=True) as scope:
-        with pt.defaults_scope(activation_fn=tf.nn.elu,
-                               batch_normalize=True,
-                               learned_moments_update_rate=0.0003,
-                               variance_epsilon=0.001,
-                               scale_after_normalization=True):
-            sampled_tensor, _, _ = decoder()
+        with pt.defaults_scope(phase=pt.Phase.test):
+            with tf.variable_scope("model", reuse=True) as scope:
+                sampled_tensor, _, _ = decoder()
 
     vae_loss = get_vae_cost(mean, stddev)
     rec_loss = get_reconstruction_cost(output_tensor, input_tensor)
@@ -132,7 +129,7 @@ if __name__ == "__main__":
     loss = vae_loss + rec_loss
 
     optimizer = tf.train.AdamOptimizer(FLAGS.learning_rate, epsilon=1.0)
-    train = optimizer.minimize(loss=loss)
+    train = pt.apply_optimizer(optimizer, losses=[loss])
 
     init = tf.initialize_all_variables()
 
