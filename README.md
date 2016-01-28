@@ -1,6 +1,6 @@
-# TF-GANs
+# TF-VAE-GAN-DRAW
 
-TensorFlow implementation of [Deep Convolutional Generative Adversarial Networks](http://arxiv.org/pdf/1511.06434.pdf) and [Variational Autoencoder (also Deep and Convolutional)](http://arxiv.org/pdf/1312.6114v10.pdf).
+TensorFlow implementation of [Deep Convolutional Generative Adversarial Networks](http://arxiv.org/pdf/1511.06434.pdf), [Variational Autoencoder (also Deep and Convolutional)](http://arxiv.org/pdf/1312.6114v10.pdf) and [DRAW: A Recurrent Neural Network For Image Generation](http://arxiv.org/pdf/1502.04623v2.pdf).
 
 ## Run
 
@@ -12,6 +12,5 @@ Deep Convolutional Generative Adversarial Networks produce decent results after 
 
 ###TODO:
 - [ ] More complex data.
-- [ ] Add attention.
 - [ ] Add [Adversarial Autoencoder](http://arxiv.org/pdf/1511.05644.pdf)
 - [ ] Replace current attention mechanism with Spatial Transformer Layer
