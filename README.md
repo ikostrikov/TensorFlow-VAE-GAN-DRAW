@@ -5,7 +5,7 @@ TensorFlow implementation of [Deep Convolutional Generative Adversarial Networks
 ## Run
 
 ```bash
-python main_***.py --working_directory /tmp/gan
+python main-***.py --working_directory /tmp/gan
 ```
 
 Deep Convolutional Generative Adversarial Networks produce decent results after 10 epochs using default parameters.
