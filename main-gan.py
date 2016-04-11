@@ -132,7 +132,7 @@ if __name__ == "__main__":
             generator_loss = 0.0
 
             widgets = ["epoch #%d|" % epoch, Percentage(), Bar(), ETA()]
-            pbar = ProgressBar(FLAGS.updates_per_epoch, widgets=widgets)
+            pbar = ProgressBar(max_value = FLAGS.updates_per_epoch, widgets=widgets)
             pbar.start()
             for i in range(FLAGS.updates_per_epoch):
                 pbar.update(i)
