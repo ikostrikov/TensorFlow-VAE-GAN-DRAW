@@ -14,7 +14,6 @@ from tensorflow.contrib.framework import arg_scope
 from scipy.misc import imsave
 from tensorflow.examples.tutorials.mnist import input_data
 
-from deconv import deconv2d
 from progressbar import ETA, Bar, Percentage, ProgressBar
 
 from vae import VAE

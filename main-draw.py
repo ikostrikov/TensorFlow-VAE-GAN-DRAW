@@ -16,7 +16,6 @@ import tensorflow as tf
 from scipy.misc import imsave
 from tensorflow.examples.tutorials.mnist import input_data
 
-from deconv import deconv2d
 from progressbar import ETA, Bar, Percentage, ProgressBar
 
 flags = tf.flags
